@@ -43,21 +43,21 @@ logger.add(
 
 @dataclass
 class GANConfig:
-    """Конфигурация для Vanilla GAN модели"""
-    # Архитектура
-    input_dim: int = 100  # Размер noise vector
+    """Configuration for Vanilla GAN model"""
+    # Architecture
+    input_dim: int = 100  # Size noise vector
     hidden_dims: List[int] = None
     output_dim: int = 5  # OHLCV
-    sequence_length: int = 60  # 60 временных шагов
+    sequence_length: int = 60  # 60 temporal шагов
     
-    # Обучение
+    # Training
     batch_size: int = 64
     learning_rate: float = 0.0002
     beta1: float = 0.5
     beta2: float = 0.999
     num_epochs: int = 1000
     
-    # Регуляризация
+    # Regularization
     dropout_rate: float = 0.2
     batch_norm: bool = True
     label_smoothing: float = 0.1
@@ -67,7 +67,7 @@ class GANConfig:
     volume_scaling: str = "log"
     market_regime_conditioning: bool = True
     
-    # Мониторинг
+    # Monitor
     save_interval: int = 100
     log_interval: int = 10
     validate_interval: int = 50
@@ -78,7 +78,7 @@ class GANConfig:
 
 
 class CryptoDataset(Dataset):
-    """Dataset для криптовалютных данных"""
+    """Dataset for cryptocurrency data"""
     
     def __init__(
         self,
@@ -99,36 +99,36 @@ class CryptoDataset(Dataset):
         logger.info(f"Created dataset with {len(self.sequences)} sequences")
     
     def _preprocess_data(self, data: pd.DataFrame) -> pd.DataFrame:
-        """Предобработка данных"""
-        # Копируем данные
+        """Preprocessing data"""
+        # Копируем data
         df = data.copy()
         
-        # Вычисляем log returns для цен
+        # Вычисляем log returns for prices
         for col in self.price_columns:
             if col in df.columns:
                 df[f'{col}_log_return'] = np.log(df[col] / df[col].shift(1))
         
-        # Log scaling для объема
+        # Log scaling for volume
         if self.volume_column in df.columns:
             df[f'{self.volume_column}_log'] = np.log1p(df[self.volume_column])
         
-        # Удаляем NaN значения
+        # Удаляем NaN values
         df = df.dropna()
         
         return df
     
     def _create_sequences(self) -> List[np.ndarray]:
-        """Создание последовательностей для обучения"""
+        """Create последовательностей for training"""
         sequences = []
         
-        # Выбираем колонки для модели
+        # Выбираем columns for model
         feature_columns = [f'{col}_log_return' for col in self.price_columns]
         if f'{self.volume_column}_log' in self.data.columns:
             feature_columns.append(f'{self.volume_column}_log')
         
         data_values = self.data[feature_columns].values
         
-        # Нормализация
+        # Normalization
         self.scaler = StandardScaler()
         data_normalized = self.scaler.fit_transform(data_values)
         
@@ -147,7 +147,7 @@ class CryptoDataset(Dataset):
 
 
 class Generator(nn.Module):
-    """Generator network для Vanilla GAN"""
+    """Generator network for Vanilla GAN"""
     
     def __init__(self, config: GANConfig):
         super(Generator, self).__init__()
@@ -155,7 +155,7 @@ class Generator(nn.Module):
         
         layers = []
         
-        # Входной слой
+        # Input layer
         in_features = config.input_dim
         for hidden_dim in config.hidden_dims:
             layers.extend([
@@ -166,7 +166,7 @@ class Generator(nn.Module):
             ])
             in_features = hidden_dim
         
-        # Выходной слой
+        # Output layer
         layers.extend([
             nn.Linear(in_features, config.sequence_length * config.output_dim),
             nn.Tanh()
@@ -174,13 +174,13 @@ class Generator(nn.Module):
         
         self.main = nn.Sequential(*layers)
         
-        # Инициализация весов
+        # Initialize weights
         self.apply(self._init_weights)
         
         logger.info(f"Generator initialized with {self._count_parameters()} parameters")
     
     def _init_weights(self, module):
-        """Инициализация весов"""
+        """Initialize weights"""
         if isinstance(module, nn.Linear):
             nn.init.normal_(module.weight.data, 0.0, 0.02)
             nn.init.constant_(module.bias.data, 0)
@@ -189,7 +189,7 @@ class Generator(nn.Module):
             nn.init.constant_(module.bias.data, 0)
     
     def _count_parameters(self):
-        """Подсчет параметров модели"""
+        """Подсчет parameters model"""
         return sum(p.numel() for p in self.parameters() if p.requires_grad)
     
     def forward(self, noise):
@@ -198,7 +198,7 @@ class Generator(nn.Module):
 
 
 class Discriminator(nn.Module):
-    """Discriminator network для Vanilla GAN"""
+    """Discriminator network for Vanilla GAN"""
     
     def __init__(self, config: GANConfig):
         super(Discriminator, self).__init__()
@@ -206,7 +206,7 @@ class Discriminator(nn.Module):
         
         layers = []
         
-        # Входной слой
+        # Input layer
         in_features = config.sequence_length * config.output_dim
         for hidden_dim in reversed(config.hidden_dims):
             layers.extend([
@@ -216,7 +216,7 @@ class Discriminator(nn.Module):
             ])
             in_features = hidden_dim
         
-        # Выходной слой
+        # Output layer
         layers.extend([
             nn.Linear(in_features, 1),
             nn.Sigmoid()
@@ -224,19 +224,19 @@ class Discriminator(nn.Module):
         
         self.main = nn.Sequential(*layers)
         
-        # Инициализация весов
+        # Initialize weights
         self.apply(self._init_weights)
         
         logger.info(f"Discriminator initialized with {self._count_parameters()} parameters")
     
     def _init_weights(self, module):
-        """Инициализация весов"""
+        """Initialize weights"""
         if isinstance(module, nn.Linear):
             nn.init.normal_(module.weight.data, 0.0, 0.02)
             nn.init.constant_(module.bias.data, 0)
     
     def _count_parameters(self):
-        """Подсчет параметров модели"""
+        """Подсчет parameters model"""
         return sum(p.numel() for p in self.parameters() if p.requires_grad)
     
     def forward(self, input):
@@ -246,9 +246,9 @@ class Discriminator(nn.Module):
 
 class VanillaGAN:
     """
-    Enterprise Vanilla GAN для генерации криптовалютных данных
+    Enterprise Vanilla GAN for генерации cryptocurrency data
     
-    Реализует enterprise patterns для production-ready deployment:
+    Implements enterprise patterns for production-ready deployment:
     - Comprehensive logging and monitoring
     - Robust training pipeline
     - Quality metrics evaluation
@@ -259,7 +259,7 @@ class VanillaGAN:
         self.config = config
         self.device = self._setup_device(device)
         
-        # Инициализация моделей
+        # Initialize models
         self.generator = Generator(config).to(self.device)
         self.discriminator = Discriminator(config).to(self.device)
         
@@ -278,7 +278,7 @@ class VanillaGAN:
         # Loss function
         self.criterion = nn.BCELoss()
         
-        # Метрики
+        # Metrics
         self.training_history = {
             'g_loss': [],
             'd_loss': [],
@@ -289,7 +289,7 @@ class VanillaGAN:
         logger.info(f"VanillaGAN initialized on {self.device}")
     
     def _setup_device(self, device: str) -> torch.device:
-        """Настройка устройства для обучения"""
+        """Configure устройства for training"""
         if device == "auto":
             if torch.cuda.is_available():
                 device = "cuda"
@@ -306,14 +306,14 @@ class VanillaGAN:
         validation_loader: Optional[DataLoader] = None
     ) -> Dict[str, List[float]]:
         """
-        Обучение GAN модели
+        Training GAN model
         
         Args:
-            dataloader: DataLoader для обучающих данных
-            validation_loader: DataLoader для валидационных данных
+            dataloader: DataLoader for обучающих data
+            validation_loader: DataLoader for валидационных data
             
         Returns:
-            История обучения
+            История training
         """
         logger.info(f"Starting training for {self.config.num_epochs} epochs")
         
@@ -328,15 +328,15 @@ class VanillaGAN:
                 real_data = real_data.to(self.device)
                 batch_size = real_data.size(0)
                 
-                # Обучение Discriminator
+                # Training Discriminator
                 d_loss = self._train_discriminator(real_data, batch_size)
                 epoch_d_loss += d_loss
                 
-                # Обучение Generator
+                # Training Generator
                 g_loss = self._train_generator(batch_size)
                 epoch_g_loss += g_loss
                 
-                # Логирование
+                # Logging
                 if batch_idx % self.config.log_interval == 0:
                     logger.info(
                         f"Epoch [{epoch}/{self.config.num_epochs}] "
@@ -344,21 +344,21 @@ class VanillaGAN:
                         f"D_loss: {d_loss:.4f} G_loss: {g_loss:.4f}"
                     )
             
-            # Усреднение loss за эпоху
+            # Усреднение loss for epoch
             avg_g_loss = epoch_g_loss / len(dataloader)
             avg_d_loss = epoch_d_loss / len(dataloader)
             
-            # Сохранение метрик
+            # Save metrics
             self.training_history['g_loss'].append(avg_g_loss)
             self.training_history['d_loss'].append(avg_d_loss)
             self.training_history['epoch'].append(epoch)
             self.training_history['timestamp'].append(datetime.now().isoformat())
             
-            # Валидация
+            # Validation
             if validation_loader and epoch % self.config.validate_interval == 0:
                 self._validate(validation_loader)
             
-            # Сохранение модели
+            # Save model
             if epoch % self.config.save_interval == 0:
                 self.save_checkpoint(f"checkpoint_epoch_{epoch}.pth")
             
@@ -371,7 +371,7 @@ class VanillaGAN:
         return self.training_history
     
     def _train_discriminator(self, real_data: torch.Tensor, batch_size: int) -> float:
-        """Обучение дискриминатора"""
+        """Training дискриминатора"""
         self.d_optimizer.zero_grad()
         
         # Real data
@@ -390,7 +390,7 @@ class VanillaGAN:
         fake_output = self.discriminator(fake_data.detach())
         fake_loss = self.criterion(fake_output, fake_labels)
         
-        # Общий loss
+        # Total loss
         d_loss = real_loss + fake_loss
         d_loss.backward()
         self.d_optimizer.step()
@@ -398,10 +398,10 @@ class VanillaGAN:
         return d_loss.item()
     
     def _train_generator(self, batch_size: int) -> float:
-        """Обучение генератора"""
+        """Training generator"""
         self.g_optimizer.zero_grad()
         
-        # Генерация fake data
+        # Generation fake data
         noise = torch.randn(batch_size, self.config.input_dim).to(self.device)
         fake_data = self.generator(noise)
         
@@ -416,7 +416,7 @@ class VanillaGAN:
         return g_loss.item()
     
     def _validate(self, validation_loader: DataLoader) -> Dict[str, float]:
-        """Валидация модели"""
+        """Validation model"""
         self.generator.eval()
         self.discriminator.eval()
         
@@ -464,14 +464,14 @@ class VanillaGAN:
         noise: Optional[torch.Tensor] = None
     ) -> np.ndarray:
         """
-        Генерация синтетических образцов
+        Generation synthetic samples
         
         Args:
-            num_samples: Количество образцов для генерации
+            num_samples: Number samples for генерации
             noise: Пользовательский шум (опционально)
             
         Returns:
-            Сгенерированные данные
+            Сгенерированные data
         """
         self.generator.eval()
         
@@ -484,7 +484,7 @@ class VanillaGAN:
         return generated_data.cpu().numpy()
     
     def save_checkpoint(self, filepath: str):
-        """Сохранение checkpoint модели"""
+        """Save checkpoint model"""
         checkpoint = {
             'generator_state_dict': self.generator.state_dict(),
             'discriminator_state_dict': self.discriminator.state_dict(),
@@ -500,7 +500,7 @@ class VanillaGAN:
         logger.info(f"Checkpoint saved to {filepath}")
     
     def load_checkpoint(self, filepath: str):
-        """Загрузка checkpoint модели"""
+        """Load checkpoint model"""
         checkpoint = torch.load(filepath, map_location=self.device)
         
         self.generator.load_state_dict(checkpoint['generator_state_dict'])
@@ -515,9 +515,9 @@ class VanillaGAN:
 
 
 def main():
-    """Пример использования VanillaGAN"""
+    """Пример use VanillaGAN"""
     
-    # Конфигурация
+    # Configuration
     config = GANConfig(
         sequence_length=60,
         output_dim=5,  # OHLCV
@@ -526,11 +526,11 @@ def main():
         learning_rate=0.0002
     )
     
-    # Создание синтетических данных для примера
+    # Create synthetic data for примера
     np.random.seed(42)
     dates = pd.date_range('2023-01-01', periods=1000, freq='1H')
     
-    # Генерация OHLCV данных
+    # Generation OHLCV data
     prices = np.cumsum(np.random.randn(1000) * 0.01) + 100
     data = pd.DataFrame({
         'timestamp': dates,
@@ -541,19 +541,19 @@ def main():
         'volume': np.random.lognormal(mean=10, sigma=1, size=1000)
     })
     
-    # Создание dataset
+    # Create dataset
     dataset = CryptoDataset(data, sequence_length=config.sequence_length)
     dataloader = DataLoader(dataset, batch_size=config.batch_size, shuffle=True)
     
-    # Обучение модели
+    # Training model
     gan = VanillaGAN(config)
     training_history = gan.train(dataloader)
     
-    # Генерация образцов
+    # Generation samples
     samples = gan.generate_samples(10)
     logger.info(f"Generated samples shape: {samples.shape}")
     
-    # Сохранение модели
+    # Save model
     gan.save_checkpoint("models/vanilla_gan_final.pth")
 
 

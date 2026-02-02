@@ -41,20 +41,20 @@ logger.add(
 
 @dataclass
 class VAEConfig:
-    """Конфигурация для Variational Autoencoder"""
-    # Архитектура
+    """Configuration for Variational Autoencoder"""
+    # Architecture
     input_dim: int = 5  # OHLCV
     sequence_length: int = 60
-    latent_dim: int = 32  # Размерность латентного пространства
+    latent_dim: int = 32  # Dimension латентного space
     hidden_dims: List[int] = None
     
-    # Обучение
+    # Training
     batch_size: int = 64
     learning_rate: float = 0.001
     num_epochs: int = 500
-    beta: float = 1.0  # Вес KL divergence
+    beta: float = 1.0  # Weight KL divergence
     
-    # Регуляризация
+    # Regularization
     dropout_rate: float = 0.2
     batch_norm: bool = True
     
@@ -67,7 +67,7 @@ class VAEConfig:
     volume_scaling: str = "log"
     use_temporal_embedding: bool = True
     
-    # Мониторинг
+    # Monitor
     save_interval: int = 50
     log_interval: int = 10
     validate_interval: int = 25
@@ -78,7 +78,7 @@ class VAEConfig:
 
 
 class CryptoVAEDataset(Dataset):
-    """Dataset для VAE с криптовалютными данными"""
+    """Dataset for VAE with криптовалютными данными"""
     
     def __init__(
         self,
@@ -97,32 +97,32 @@ class CryptoVAEDataset(Dataset):
         logger.info(f"VAE dataset created with {len(self.sequences)} sequences")
     
     def _preprocess_data(self, data: pd.DataFrame) -> Tuple[pd.DataFrame, StandardScaler]:
-        """Предобработка данных для VAE"""
+        """Preprocessing data for VAE"""
         df = data.copy()
         
-        # Log returns для цен
+        # Log returns for prices
         for col in self.price_columns:
             if col in df.columns:
                 df[f'{col}_log_return'] = np.log(df[col] / df[col].shift(1))
         
-        # Log scaling для объема
+        # Log scaling for volume
         if self.volume_column in df.columns:
             df[f'{self.volume_column}_log'] = np.log1p(df[self.volume_column])
         
-        # Дополнительные features
+        # Additional features
         if 'close' in df.columns:
-            # Простая волатильность
+            # Simple volatility
             df['volatility'] = df['close'].pct_change().rolling(20).std()
             
             # Momentum
             df['momentum'] = df['close'].pct_change(10)
         
-        # Выбор features для модели
+        # Select features for model
         feature_columns = [f'{col}_log_return' for col in self.price_columns]
         if f'{self.volume_column}_log' in df.columns:
             feature_columns.append(f'{self.volume_column}_log')
         
-        # Добавляем дополнительные features
+        # Add additional features
         for feature in ['volatility', 'momentum']:
             if feature in df.columns:
                 feature_columns.append(feature)
@@ -139,7 +139,7 @@ class CryptoVAEDataset(Dataset):
         return df_normalized, scaler
     
     def _create_sequences(self) -> List[np.ndarray]:
-        """Создание последовательностей для VAE"""
+        """Create последовательностей for VAE"""
         sequences = []
         data_values = self.data.values
         
@@ -157,18 +157,18 @@ class CryptoVAEDataset(Dataset):
 
 
 class VAEEncoder(nn.Module):
-    """Encoder network для VAE"""
+    """Encoder network for VAE"""
     
     def __init__(self, config: VAEConfig):
         super(VAEEncoder, self).__init__()
         self.config = config
         
-        # Flatten input для fully connected layers
+        # Flatten input for fully connected layers
         input_size = config.sequence_length * config.input_dim
         
         layers = []
         
-        # Основные слои
+        # Main layers
         in_features = input_size
         for hidden_dim in config.hidden_dims:
             layers.extend([
@@ -181,11 +181,11 @@ class VAEEncoder(nn.Module):
         
         self.main = nn.Sequential(*layers)
         
-        # Финальные слои для mu и log_var
+        # Финальные layers for mu and log_var
         self.mu_layer = nn.Linear(in_features, config.latent_dim)
         self.logvar_layer = nn.Linear(in_features, config.latent_dim)
         
-        # Инициализация весов
+        # Initialize weights
         self.apply(self._init_weights)
         
         logger.info(f"VAE Encoder initialized with {self._count_parameters()} parameters")
@@ -207,10 +207,10 @@ class VAEEncoder(nn.Module):
         batch_size = x.size(0)
         x_flat = x.view(batch_size, -1)
         
-        # Основные слои
+        # Main layers
         features = self.main(x_flat)
         
-        # Получаем параметры распределения
+        # Получаем parameters распределения
         mu = self.mu_layer(features)
         logvar = self.logvar_layer(features)
         
@@ -218,18 +218,18 @@ class VAEEncoder(nn.Module):
 
 
 class VAEDecoder(nn.Module):
-    """Decoder network для VAE"""
+    """Decoder network for VAE"""
     
     def __init__(self, config: VAEConfig):
         super(VAEDecoder, self).__init__()
         self.config = config
         
-        # Выходной размер
+        # Output size
         output_size = config.sequence_length * config.input_dim
         
         layers = []
         
-        # Начинаем с латентного пространства
+        # Начинаем with латентного space
         in_features = config.latent_dim
         hidden_dims_reversed = list(reversed(config.hidden_dims))
         
@@ -242,15 +242,15 @@ class VAEDecoder(nn.Module):
             ])
             in_features = hidden_dim
         
-        # Финальный слой
+        # Финальный layer
         layers.extend([
             nn.Linear(in_features, output_size),
-            # Без активации на выходе для regression задач
+            # Without activation on выходе for regression tasks
         ])
         
         self.main = nn.Sequential(*layers)
         
-        # Инициализация весов
+        # Initialize weights
         self.apply(self._init_weights)
         
         logger.info(f"VAE Decoder initialized with {self._count_parameters()} parameters")
@@ -271,7 +271,7 @@ class VAEDecoder(nn.Module):
         # Decoder forward pass
         output = self.main(z)
         
-        # Reshape к исходной форме
+        # Reshape to исходной форме
         batch_size = z.size(0)
         output = output.view(batch_size, self.config.sequence_length, self.config.input_dim)
         
@@ -280,12 +280,12 @@ class VAEDecoder(nn.Module):
 
 class VariationalAutoencoder:
     """
-    Variational Autoencoder для криптовалютных временных рядов
+    Variational Autoencoder for cryptocurrency temporal рядов
     
-    Реализует:
-    - Standard VAE с KL divergence regularization
+    Implements:
+    - Standard VAE with KL divergence regularization
     - Reparameterization trick
-    - Beta scheduling для KL warmup
+    - Beta scheduling for KL warmup
     - Crypto-specific data handling
     - Latent space exploration utilities
     """
@@ -294,7 +294,7 @@ class VariationalAutoencoder:
         self.config = config
         self.device = self._setup_device(device)
         
-        # Инициализация encoder и decoder
+        # Initialize encoder and decoder
         self.encoder = VAEEncoder(config).to(self.device)
         self.decoder = VAEDecoder(config).to(self.device)
         
@@ -307,7 +307,7 @@ class VariationalAutoencoder:
             self.optimizer, mode='min', patience=10, factor=0.5
         )
         
-        # Метрики
+        # Metrics
         self.training_history = {
             'total_loss': [],
             'reconstruction_loss': [],
@@ -332,13 +332,13 @@ class VariationalAutoencoder:
         return torch.device(device)
     
     def _reparameterize(self, mu: torch.Tensor, logvar: torch.Tensor) -> torch.Tensor:
-        """Reparameterization trick для VAE"""
+        """Reparameterization trick for VAE"""
         std = torch.exp(0.5 * logvar)
         eps = torch.randn_like(std)
         return mu + eps * std
     
     def _reconstruction_loss(self, recon_x: torch.Tensor, x: torch.Tensor) -> torch.Tensor:
-        """Вычисление reconstruction loss"""
+        """Computation reconstruction loss"""
         if self.config.reconstruction_loss_type == "mse":
             return F.mse_loss(recon_x, x, reduction='sum')
         elif self.config.reconstruction_loss_type == "bce":
@@ -349,11 +349,11 @@ class VariationalAutoencoder:
             return F.mse_loss(recon_x, x, reduction='sum')
     
     def _kl_divergence(self, mu: torch.Tensor, logvar: torch.Tensor) -> torch.Tensor:
-        """KL divergence от стандартного нормального распределения"""
+        """KL divergence from стандартного нормального распределения"""
         return -0.5 * torch.sum(1 + logvar - mu.pow(2) - logvar.exp())
     
     def _get_beta(self, epoch: int) -> float:
-        """Beta scheduling для KL warmup"""
+        """Beta scheduling for KL warmup"""
         if epoch < self.config.kl_warmup_epochs:
             # Линейный warmup
             return self.config.beta * (epoch / self.config.kl_warmup_epochs)
@@ -365,7 +365,7 @@ class VariationalAutoencoder:
         dataloader: DataLoader,
         validation_loader: Optional[DataLoader] = None
     ) -> Dict[str, List[float]]:
-        """Обучение VAE"""
+        """Training VAE"""
         logger.info(f"Starting VAE training for {self.config.num_epochs} epochs")
         
         self.encoder.train()
@@ -376,7 +376,7 @@ class VariationalAutoencoder:
             epoch_recon_loss = 0.0
             epoch_kl_loss = 0.0
             
-            # Текущий beta для KL warmup
+            # Current beta for KL warmup
             beta = self._get_beta(epoch)
             
             for batch_idx, data in enumerate(dataloader):
@@ -399,7 +399,7 @@ class VariationalAutoencoder:
                 recon_loss = self._reconstruction_loss(recon_data, data)
                 kl_loss = self._kl_divergence(mu, logvar)
                 
-                # Total loss с beta weighting
+                # Total loss with beta weighting
                 total_loss = recon_loss + beta * kl_loss
                 
                 # Normalization by batch size
@@ -418,12 +418,12 @@ class VariationalAutoencoder:
                 
                 self.optimizer.step()
                 
-                # Накопление метрик
+                # Накопление metrics
                 epoch_total_loss += total_loss.item()
                 epoch_recon_loss += recon_loss.item()
                 epoch_kl_loss += kl_loss.item()
                 
-                # Логирование
+                # Logging
                 if batch_idx % self.config.log_interval == 0:
                     logger.info(
                         f"Epoch [{epoch}/{self.config.num_epochs}] "
@@ -434,13 +434,13 @@ class VariationalAutoencoder:
                         f"Beta: {beta:.4f}"
                     )
             
-            # Усреднение метрик за эпоху
+            # Усреднение metrics for epoch
             num_batches = len(dataloader)
             avg_total_loss = epoch_total_loss / num_batches
             avg_recon_loss = epoch_recon_loss / num_batches
             avg_kl_loss = epoch_kl_loss / num_batches
             
-            # Сохранение метрик
+            # Save metrics
             self.training_history['total_loss'].append(avg_total_loss)
             self.training_history['reconstruction_loss'].append(avg_recon_loss)
             self.training_history['kl_loss'].append(avg_kl_loss)
@@ -451,14 +451,14 @@ class VariationalAutoencoder:
             # Learning rate scheduling
             self.scheduler.step(avg_total_loss)
             
-            # Валидация
+            # Validation
             if validation_loader and epoch % self.config.validate_interval == 0:
                 val_metrics = self._validate(validation_loader, beta)
                 logger.info(f"Validation - Total: {val_metrics['total_loss']:.4f}, "
                            f"Recon: {val_metrics['recon_loss']:.4f}, "
                            f"KL: {val_metrics['kl_loss']:.4f}")
             
-            # Сохранение модели
+            # Save model
             if epoch % self.config.save_interval == 0:
                 self.save_checkpoint(f"vae_checkpoint_epoch_{epoch}.pth")
             
@@ -472,7 +472,7 @@ class VariationalAutoencoder:
         return self.training_history
     
     def _validate(self, validation_loader: DataLoader, beta: float) -> Dict[str, float]:
-        """Валидация модели"""
+        """Validation model"""
         self.encoder.eval()
         self.decoder.eval()
         
@@ -514,25 +514,25 @@ class VariationalAutoencoder:
         }
     
     def encode(self, x: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
-        """Кодирование данных в латентное пространство"""
+        """Encode data in латентное space"""
         self.encoder.eval()
         with torch.no_grad():
             mu, logvar = self.encoder(x)
         return mu, logvar
     
     def decode(self, z: torch.Tensor) -> torch.Tensor:
-        """Декодирование из латентного пространства"""
+        """Декодирование from латентного space"""
         self.decoder.eval()
         with torch.no_grad():
             return self.decoder(z)
     
     def generate_samples(self, num_samples: int, z: Optional[torch.Tensor] = None) -> np.ndarray:
         """
-        Генерация новых образцов
+        Generation new samples
         
         Args:
-            num_samples: Количество образцов для генерации
-            z: Латентные векторы (если None, генерируются из N(0,1))
+            num_samples: Number samples for генерации
+            z: Латентные vectors (if None, генерируются from N(0,1))
         """
         self.decoder.eval()
         
@@ -551,17 +551,17 @@ class VariationalAutoencoder:
         num_steps: int = 10
     ) -> np.ndarray:
         """
-        Интерполяция между двумя точками в латентном пространстве
+        Interpolation between двумя точками in латентном пространстве
         
         Args:
-            x1, x2: Исходные данные для интерполяции
-            num_steps: Количество шагов интерполяции
+            x1, x2: Исходные data for интерполяции
+            num_steps: Number шагов интерполяции
         """
         self.encoder.eval()
         self.decoder.eval()
         
         with torch.no_grad():
-            # Кодируем в латентное пространство
+            # Кодируем in латентное space
             mu1, _ = self.encoder(x1)
             mu2, _ = self.encoder(x2)
             
@@ -576,7 +576,7 @@ class VariationalAutoencoder:
         return np.array(interpolated_samples)
     
     def latent_space_analysis(self, dataloader: DataLoader) -> Dict[str, np.ndarray]:
-        """Анализ латентного пространства"""
+        """Анализ латентного space"""
         self.encoder.eval()
         
         latent_vectors = []
@@ -601,7 +601,7 @@ class VariationalAutoencoder:
         }
     
     def save_checkpoint(self, filepath: str):
-        """Сохранение checkpoint VAE"""
+        """Save checkpoint VAE"""
         checkpoint = {
             'encoder_state_dict': self.encoder.state_dict(),
             'decoder_state_dict': self.decoder.state_dict(),
@@ -617,7 +617,7 @@ class VariationalAutoencoder:
         logger.info(f"VAE checkpoint saved to {filepath}")
     
     def load_checkpoint(self, filepath: str):
-        """Загрузка checkpoint VAE"""
+        """Load checkpoint VAE"""
         checkpoint = torch.load(filepath, map_location=self.device)
         
         self.encoder.load_state_dict(checkpoint['encoder_state_dict'])
@@ -632,9 +632,9 @@ class VariationalAutoencoder:
 
 
 def main():
-    """Пример использования VAE"""
+    """Пример use VAE"""
     
-    # Конфигурация VAE
+    # Configuration VAE
     config = VAEConfig(
         sequence_length=60,
         input_dim=5,  # OHLCV
@@ -648,16 +648,16 @@ def main():
         reconstruction_loss_type="mse"
     )
     
-    # Создание синтетических данных
+    # Create synthetic data
     np.random.seed(42)
     dates = pd.date_range('2023-01-01', periods=2000, freq='1H')
     
-    # Симуляция crypto данных с разными режимами
+    # Симуляция crypto data with разными режимами
     prices = []
     base_price = 1000
     
     for i in range(2000):
-        # Разные рыночные условия
+        # Разные market условия
         if i < 500:
             # Trending market
             drift = 0.0005
@@ -688,10 +688,10 @@ def main():
         'volume': np.random.lognormal(mean=12, sigma=1, size=2000)
     })
     
-    # Создание VAE dataset
+    # Create VAE dataset
     dataset = CryptoVAEDataset(data, sequence_length=config.sequence_length)
     
-    # Разделение на train/validation
+    # Split on train/validation
     train_size = int(0.8 * len(dataset))
     val_size = len(dataset) - train_size
     train_dataset, val_dataset = torch.utils.data.random_split(dataset, [train_size, val_size])
@@ -699,29 +699,29 @@ def main():
     train_dataloader = DataLoader(train_dataset, batch_size=config.batch_size, shuffle=True)
     val_dataloader = DataLoader(val_dataset, batch_size=config.batch_size, shuffle=False)
     
-    # Обучение VAE
+    # Training VAE
     vae = VariationalAutoencoder(config)
     training_history = vae.train(train_dataloader, val_dataloader)
     
-    # Генерация новых образцов
+    # Generation new samples
     generated_samples = vae.generate_samples(num_samples=10)
     logger.info(f"Generated samples shape: {generated_samples.shape}")
     
-    # Анализ латентного пространства
+    # Анализ латентного space
     latent_analysis = vae.latent_space_analysis(val_dataloader)
     logger.info(f"Latent vectors shape: {latent_analysis['latent_vectors'].shape}")
     
-    # Интерполяция между образцами
+    # Interpolation between samples
     if len(val_dataset) >= 2:
         sample1 = val_dataset[0].unsqueeze(0).to(vae.device)
         sample2 = val_dataset[1].unsqueeze(0).to(vae.device)
         interpolation = vae.interpolate(sample1, sample2, num_steps=5)
         logger.info(f"Interpolation shape: {interpolation.shape}")
     
-    # Сохранение модели
+    # Save model
     vae.save_checkpoint("models/vae_final.pth")
     
-    # Анализ результатов
+    # Анализ results
     final_metrics = training_history
     logger.info("VAE training metrics:")
     logger.info(f"Final Total Loss: {final_metrics['total_loss'][-1]:.4f}")
