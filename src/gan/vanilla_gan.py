@@ -2,7 +2,7 @@
 Vanilla GAN Implementation for Crypto Trading Data Generation
 
 Enterprise-grade Generative Adversarial Network implementation specifically 
-designed for crypto trading data synthesis. Follows Context7 patterns for 
+designed for crypto trading data synthesis. Follows enterprise patterns for 
 scalability and production readiness.
 
 Features:
@@ -248,7 +248,7 @@ class VanillaGAN:
     """
     Enterprise Vanilla GAN для генерации криптовалютных данных
     
-    Реализует Context7 patterns для production-ready deployment:
+    Реализует enterprise patterns для production-ready deployment:
     - Comprehensive logging and monitoring
     - Robust training pipeline
     - Quality metrics evaluation

@@ -40,7 +40,7 @@ class SyntheticDataConfig:
     outlier_fraction: float = 0.05
     rare_event_probability: float = 0.01
     
-    # Context7 Enterprise patterns
+    # enterprise patterns
     quality_threshold: float = 0.95
     statistical_tests: bool = True
     visual_validation: bool = True

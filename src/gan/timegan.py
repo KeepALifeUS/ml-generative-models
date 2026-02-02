@@ -38,7 +38,7 @@ class TimeGANConfig:
     module: str = 'gru'  # 'gru', 'lstm', 'rnn'
     bidirectional: bool = False
     
-    # Context7 Enterprise patterns
+    # enterprise patterns
     enable_monitoring: bool = True
     checkpoint_frequency: int = 50
     use_cuda: bool = torch.cuda.is_available()
