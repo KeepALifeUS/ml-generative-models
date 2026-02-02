@@ -1,8 +1,8 @@
 [project]
-name = "ctb3-ml-generative-models"
+name = "ml-generative-models"
 version = "1.0.0"
 description = "Generative Models for Data Augmentation in Crypto Trading"
-authors = [{name = "CTB3 Team", email = "team@ctb3.ai"}]
+authors = [{name = "ML Team", email = "team@example.com"}]
 readme = "README.md"
 requires-python = ">=3.9"
 license = {text = "MIT"}
