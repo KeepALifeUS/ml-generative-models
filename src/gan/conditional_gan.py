@@ -56,14 +56,14 @@ class MarketRegime(Enum):
 class ConditionalGANConfig(GANConfig):
     """Configuration for Conditional GAN"""
     # Conditional parameters
-    num_classes: int = 5  # Number классов условий
+    num_classes: int = 5 # Number classes conditions
     condition_dim: int = 10  # Dimension condition embedding
     use_label_smoothing: bool = True
     condition_types: List[str] = None
     
     # Market regime specific
-    volatility_window: int = 20  # Окно for расчета volatility
-    trend_window: int = 10      # Окно for определения trend
+    volatility_window: int = 20 # Window for calculation volatility
+    trend_window: int = 10 # Window for determining trend
     
     # Advanced conditioning
     use_auxiliary_classifier: bool = True  # AC-GAN style
@@ -76,7 +76,7 @@ class ConditionalGANConfig(GANConfig):
 
 
 class ConditionalCryptoDataset(Dataset):
-    """Dataset with условными метками for cGAN"""
+    """Dataset with conditional labels for cGAN"""
     
     def __init__(
         self,
@@ -98,7 +98,7 @@ class ConditionalCryptoDataset(Dataset):
         logger.info(f"Condition types: {self.config.condition_types}")
     
     def _preprocess_data(self, data: pd.DataFrame) -> Tuple[pd.DataFrame, pd.DataFrame, MinMaxScaler]:
-        """Preprocessing with созданием условных меток"""
+        """Preprocessing with conditional labels"""
         df = data.copy()
         
         # Base preprocessing prices
@@ -109,10 +109,10 @@ class ConditionalCryptoDataset(Dataset):
         if self.volume_column in df.columns:
             df[f'{self.volume_column}_log'] = np.log1p(df[self.volume_column])
         
-        # Create условных меток
+        # Create conditional labels
         conditions_df = pd.DataFrame(index=df.index)
         
-        # 1. Market Regime (on основе price движений)
+        # 1. Market Regime (on basis price )
         if 'regime' in self.config.condition_types:
             conditions_df['regime'] = self._compute_market_regime(df)
         
@@ -133,7 +133,7 @@ class ConditionalCryptoDataset(Dataset):
         if 'price_level' in self.config.condition_types:
             conditions_df['price_level'] = self._compute_price_level(df)
         
-        # Удаляем NaN
+        # Removing NaN
         valid_idx = df.dropna().index
         df = df.loc[valid_idx]
         conditions_df = conditions_df.loc[valid_idx]
@@ -156,7 +156,7 @@ class ConditionalCryptoDataset(Dataset):
         
         close_prices = df['close']
         
-        # Trend (on основе moving average)
+        # Trend (on basis moving average)
         sma_short = close_prices.rolling(self.config.trend_window).mean()
         sma_long = close_prices.rolling(self.config.trend_window * 2).mean()
         
@@ -183,7 +183,7 @@ class ConditionalCryptoDataset(Dataset):
         return regime
     
     def _compute_volatility_level(self, df: pd.DataFrame) -> pd.Series:
-        """Уровень volatility"""
+        """Level volatility"""
         if 'close' not in df.columns:
             return pd.Series(0, index=df.index)
         
@@ -200,7 +200,7 @@ class ConditionalCryptoDataset(Dataset):
         return vol_levels
     
     def _compute_volume_level(self, df: pd.DataFrame) -> pd.Series:
-        """Уровень торгового volume"""
+        """Level trading volume"""
         if self.volume_column not in df.columns:
             return pd.Series(0, index=df.index)
         
@@ -220,12 +220,12 @@ class ConditionalCryptoDataset(Dataset):
         return vol_levels
     
     def _encode_time_cyclical(self, df: pd.DataFrame) -> Tuple[pd.Series, pd.Series]:
-        """Cyclical encoding времени"""
+        """Cyclical encoding time"""
         if 'timestamp' in df.columns:
             timestamps = pd.to_datetime(df['timestamp'])
             hours = timestamps.dt.hour
         else:
-            # If no timestamp, создаем artificial время
+            # If no timestamp, create artificial time
             hours = pd.Series(range(len(df))) % 24
         
         hour_sin = np.sin(2 * np.pi * hours / 24)
@@ -234,7 +234,7 @@ class ConditionalCryptoDataset(Dataset):
         return hour_sin, hour_cos
     
     def _compute_price_level(self, df: pd.DataFrame) -> pd.Series:
-        """Уровень prices through кластеризацию"""
+        """Level prices through """
         if 'close' not in df.columns:
             return pd.Series(0, index=df.index)
         
@@ -247,7 +247,7 @@ class ConditionalCryptoDataset(Dataset):
         return pd.Series(price_clusters, index=df.index)
     
     def _create_sequences(self) -> Tuple[List[np.ndarray], List[np.ndarray]]:
-        """Create последовательностей with условными метками"""
+        """Create sequences with conditional labels"""
         sequences = []
         condition_sequences = []
         
@@ -255,11 +255,11 @@ class ConditionalCryptoDataset(Dataset):
         condition_values = self.conditions.values
         
         for i in range(len(data_values) - self.sequence_length + 1):
-            # Data последовательности
+            # Data sequence
             sequence = data_values[i:i + self.sequence_length]
             sequences.append(sequence)
             
-            # Условные метки (take last метку in последовательности)
+            # labels (take last label in sequence)
             condition = condition_values[i + self.sequence_length - 1]
             condition_sequences.append(condition)
         
@@ -281,7 +281,7 @@ class ConditionalGenerator(nn.Module):
         super(ConditionalGenerator, self).__init__()
         self.config = config
         
-        # Embedding for условий
+        # Embedding for conditions
         self.condition_embedding = nn.Linear(
             config.num_classes, 
             config.condition_dim
@@ -327,10 +327,10 @@ class ConditionalGenerator(nn.Module):
         return sum(p.numel() for p in self.parameters() if p.requires_grad)
     
     def forward(self, noise, conditions):
-        # Embedding условий
+        # Embedding conditions
         condition_emb = self.condition_embedding(conditions)
         
-        # Конкатенация noise and conditions
+        # Concatenation noise and conditions
         input_combined = torch.cat([noise, condition_emb], dim=1)
         
         output = self.main(input_combined)
@@ -344,7 +344,7 @@ class ConditionalDiscriminator(nn.Module):
         super(ConditionalDiscriminator, self).__init__()
         self.config = config
         
-        # Embedding for условий
+        # Embedding for conditions
         self.condition_embedding = nn.Linear(
             config.num_classes,
             config.condition_dim
@@ -363,7 +363,7 @@ class ConditionalDiscriminator(nn.Module):
             ])
             in_features = hidden_dim
         
-        # Main выход (real/fake)
+        # Main output (real/fake)
         self.discriminator_head = nn.Sequential(
             nn.Linear(in_features, 1),
             nn.Sigmoid()
@@ -371,7 +371,7 @@ class ConditionalDiscriminator(nn.Module):
         
         self.main = nn.Sequential(*layers)
         
-        # Auxiliary classifier (if используется AC-GAN)
+        # Auxiliary classifier (if is used AC-GAN)
         if config.use_auxiliary_classifier:
             self.auxiliary_head = nn.Sequential(
                 nn.Linear(in_features, config.num_classes),
@@ -396,10 +396,10 @@ class ConditionalDiscriminator(nn.Module):
         # Flatten input data
         input_flat = input_data.view(-1, self.config.sequence_length * self.config.output_dim)
         
-        # Embedding условий
+        # Embedding conditions
         condition_emb = self.condition_embedding(conditions)
         
-        # Конкатенация data and conditions
+        # Concatenation data and conditions
         combined_input = torch.cat([input_flat, condition_emb], dim=1)
         
         # Main features
@@ -408,7 +408,7 @@ class ConditionalDiscriminator(nn.Module):
         # Real/fake classification
         discriminator_output = self.discriminator_head(features)
         
-        # Auxiliary classification (if используется)
+        # Auxiliary classification (if is used)
         auxiliary_output = None
         if self.config.use_auxiliary_classifier:
             auxiliary_output = self.auxiliary_head(features)
@@ -418,13 +418,13 @@ class ConditionalDiscriminator(nn.Module):
 
 class ConditionalGAN:
     """
-    Conditional GAN for контролируемой генерации cryptocurrency data
+    Conditional GAN for generation cryptocurrency data
     
-    Возможности:
-    - Generation by market режимам
-    - Контроль volatility and volume
-    - Временное conditioning
-    - AC-GAN стиль auxiliary classification
+    :
+    - Generation by market regimes
+    - volatility and volume
+    - Temporal conditioning
+    - AC-GAN style auxiliary classification
     """
     
     def __init__(self, config: ConditionalGANConfig, device: str = "auto"):
@@ -435,7 +435,7 @@ class ConditionalGAN:
         self.generator = ConditionalGenerator(config).to(self.device)
         self.discriminator = ConditionalDiscriminator(config).to(self.device)
         
-        # Оптимизаторы
+        # Optimizers
         self.g_optimizer = optim.Adam(
             self.generator.parameters(),
             lr=config.learning_rate,
@@ -517,7 +517,7 @@ class ConditionalGAN:
                         f"D_aux: {d_aux_loss:.4f} G_aux: {g_aux_loss:.4f}"
                     )
             
-            # Усреднение loss for epoch
+            # Averaging loss for epoch
             num_batches = len(dataloader)
             avg_g_loss = epoch_g_loss / num_batches
             avg_d_loss = epoch_d_loss / num_batches
@@ -555,7 +555,7 @@ class ConditionalGAN:
         real_conditions: torch.Tensor, 
         batch_size: int
     ) -> Tuple[float, float]:
-        """Training дискриминатора"""
+        """Training discriminator"""
         self.d_optimizer.zero_grad()
         
         # Real data
@@ -569,13 +569,13 @@ class ConditionalGAN:
         # Auxiliary loss for real data
         real_aux_loss = 0.0
         if self.config.use_auxiliary_classifier and real_aux_output is not None:
-            # Преобразуем conditions in class labels
+            # conditions in class labels
             real_class_labels = torch.argmax(real_conditions, dim=1)
             real_aux_loss = self.auxiliary_criterion(real_aux_output, real_class_labels)
         
         # Fake data
         noise = torch.randn(batch_size, self.config.input_dim).to(self.device)
-        fake_conditions = self._sample_conditions(batch_size)  # Случайные условия
+        fake_conditions = self._sample_conditions(batch_size) # Random conditions
         fake_data = self.generator(noise, fake_conditions)
         
         fake_labels = torch.zeros(batch_size, 1).to(self.device)
@@ -601,11 +601,11 @@ class ConditionalGAN:
         """Training generator"""
         self.g_optimizer.zero_grad()
         
-        # Generation fake data with теми же условиями
+        # Generation fake data with conditions
         noise = torch.randn(batch_size, self.config.input_dim).to(self.device)
         fake_data = self.generator(noise, real_conditions)
         
-        # Пытаемся обмануть дискриминатор
+        # Trying fool
         fake_labels = torch.ones(batch_size, 1).to(self.device)
         fake_output, fake_aux_output = self.discriminator(fake_data, real_conditions)
         
@@ -627,11 +627,11 @@ class ConditionalGAN:
         return g_loss.item(), g_aux_loss if isinstance(g_aux_loss, float) else g_aux_loss.item()
     
     def _sample_conditions(self, batch_size: int) -> torch.Tensor:
-        """Generation random условий"""
-        # Создаем one-hot кодированные условия
+        """Generation random conditions"""
+        # Create one-hot conditions
         conditions = torch.zeros(batch_size, self.config.num_classes).to(self.device)
         
-        # Random selection класса for each samples
+        # Random selection class for each samples
         random_classes = torch.randint(0, self.config.num_classes, (batch_size,))
         conditions.scatter_(1, random_classes.unsqueeze(1).to(self.device), 1)
         
@@ -686,12 +686,12 @@ class ConditionalGAN:
         noise: Optional[torch.Tensor] = None
     ) -> np.ndarray:
         """
-        Generation with заданными условиями
+        Generation with conditions
         
         Args:
             num_samples: Number samples
-            conditions: Условия (if None, генерируются случайно)
-            noise: Шум (if None, генерируется случайно)
+            conditions: Conditions (if None, are generated randomly)
+            noise: (if None, randomly)
         """
         self.generator.eval()
         
@@ -714,11 +714,11 @@ class ConditionalGAN:
         regime: MarketRegime,
         **kwargs
     ) -> np.ndarray:
-        """Generation for специфичного market regime"""
-        # Создаем условия for указанного regime
+        """Generation for market regime"""
+        # Create conditions for specified regime
         conditions = torch.zeros(num_samples, self.config.num_classes).to(self.device)
         
-        # Маппинг regimes on индексы
+        # regimes on indices
         regime_mapping = {
             MarketRegime.SIDEWAYS: 0,
             MarketRegime.BULL: 1,
@@ -764,13 +764,13 @@ class ConditionalGAN:
 
 
 def main():
-    """Пример use Conditional GAN"""
+    """Example use Conditional GAN"""
     
     # Configuration cGAN
     config = ConditionalGANConfig(
         sequence_length=60,
         output_dim=5,  # OHLCV
-        num_classes=5,  # Number условных классов
+        num_classes=5, # Number conditional classes
         condition_dim=10,
         batch_size=32,
         num_epochs=150,
@@ -784,13 +784,13 @@ def main():
     np.random.seed(42)
     dates = pd.date_range('2023-01-01', periods=3000, freq='1H')
     
-    # Симуляция various market regimes
+    # Simulation various market regimes
     base_price = 1000
     prices = []
     volumes = []
     
     for i in range(3000):
-        # Создаем разные regimes
+        # Create different regimes
         if i < 1000:  # Bull market
             price_change = np.random.normal(0.001, 0.01)
             volume_mult = np.random.lognormal(0, 0.3)
@@ -830,7 +830,7 @@ def main():
     cgan = ConditionalGAN(config)
     training_history = cgan.train(train_dataloader, val_dataloader)
     
-    # Generation by various режимам
+    # Generation by various regimes
     bull_samples = cgan.generate_by_regime(5, MarketRegime.BULL)
     bear_samples = cgan.generate_by_regime(5, MarketRegime.BEAR)
     high_vol_samples = cgan.generate_by_regime(5, MarketRegime.HIGH_VOLATILITY)

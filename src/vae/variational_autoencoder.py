@@ -45,7 +45,7 @@ class VAEConfig:
     # Architecture
     input_dim: int = 5  # OHLCV
     sequence_length: int = 60
-    latent_dim: int = 32  # Dimension латентного space
+    latent_dim: int = 32 # Dimension latent space
     hidden_dims: List[int] = None
     
     # Training
@@ -58,8 +58,8 @@ class VAEConfig:
     dropout_rate: float = 0.2
     batch_norm: bool = True
     
-    # VAE специфичные
-    kl_warmup_epochs: int = 100  # Постепенное увеличение beta
+    # VAE specific
+    kl_warmup_epochs: int = 100 # beta
     reconstruction_loss_type: str = "mse"  # "mse", "bce", "smooth_l1"
     
     # Crypto-specific
@@ -78,7 +78,7 @@ class VAEConfig:
 
 
 class CryptoVAEDataset(Dataset):
-    """Dataset for VAE with криптовалютными данными"""
+    """Dataset for VAE with data"""
     
     def __init__(
         self,
@@ -127,10 +127,10 @@ class CryptoVAEDataset(Dataset):
             if feature in df.columns:
                 feature_columns.append(feature)
         
-        # Удаляем NaN
+        # Removing NaN
         df_clean = df[feature_columns].dropna()
         
-        # Стандартизация
+        # Standardization
         scaler = StandardScaler()
         data_normalized = scaler.fit_transform(df_clean.values)
         
@@ -139,7 +139,7 @@ class CryptoVAEDataset(Dataset):
         return df_normalized, scaler
     
     def _create_sequences(self) -> List[np.ndarray]:
-        """Create последовательностей for VAE"""
+        """Create sequences for VAE"""
         sequences = []
         data_values = self.data.values
         
@@ -181,7 +181,7 @@ class VAEEncoder(nn.Module):
         
         self.main = nn.Sequential(*layers)
         
-        # Финальные layers for mu and log_var
+        # Final layers for mu and log_var
         self.mu_layer = nn.Linear(in_features, config.latent_dim)
         self.logvar_layer = nn.Linear(in_features, config.latent_dim)
         
@@ -210,7 +210,7 @@ class VAEEncoder(nn.Module):
         # Main layers
         features = self.main(x_flat)
         
-        # Получаем parameters распределения
+        # Getting parameters distribution
         mu = self.mu_layer(features)
         logvar = self.logvar_layer(features)
         
@@ -229,7 +229,7 @@ class VAEDecoder(nn.Module):
         
         layers = []
         
-        # Начинаем with латентного space
+        # Starting with latent space
         in_features = config.latent_dim
         hidden_dims_reversed = list(reversed(config.hidden_dims))
         
@@ -242,10 +242,10 @@ class VAEDecoder(nn.Module):
             ])
             in_features = hidden_dim
         
-        # Финальный layer
+        # Final layer
         layers.extend([
             nn.Linear(in_features, output_size),
-            # Without activation on выходе for regression tasks
+            # Without activation on for regression tasks
         ])
         
         self.main = nn.Sequential(*layers)
@@ -271,7 +271,7 @@ class VAEDecoder(nn.Module):
         # Decoder forward pass
         output = self.main(z)
         
-        # Reshape to исходной форме
+        # Reshape to original
         batch_size = z.size(0)
         output = output.view(batch_size, self.config.sequence_length, self.config.input_dim)
         
@@ -280,7 +280,7 @@ class VAEDecoder(nn.Module):
 
 class VariationalAutoencoder:
     """
-    Variational Autoencoder for cryptocurrency temporal рядов
+    Variational Autoencoder for cryptocurrency temporal series
     
     Implements:
     - Standard VAE with KL divergence regularization
@@ -298,11 +298,11 @@ class VariationalAutoencoder:
         self.encoder = VAEEncoder(config).to(self.device)
         self.decoder = VAEDecoder(config).to(self.device)
         
-        # Оптимизатор
+        # Optimizer
         params = list(self.encoder.parameters()) + list(self.decoder.parameters())
         self.optimizer = optim.Adam(params, lr=config.learning_rate)
         
-        # Планировщик learning rate
+        # Scheduler learning rate
         self.scheduler = optim.lr_scheduler.ReduceLROnPlateau(
             self.optimizer, mode='min', patience=10, factor=0.5
         )
@@ -349,13 +349,13 @@ class VariationalAutoencoder:
             return F.mse_loss(recon_x, x, reduction='sum')
     
     def _kl_divergence(self, mu: torch.Tensor, logvar: torch.Tensor) -> torch.Tensor:
-        """KL divergence from стандартного нормального распределения"""
+        """KL divergence from distribution"""
         return -0.5 * torch.sum(1 + logvar - mu.pow(2) - logvar.exp())
     
     def _get_beta(self, epoch: int) -> float:
         """Beta scheduling for KL warmup"""
         if epoch < self.config.kl_warmup_epochs:
-            # Линейный warmup
+            # warmup
             return self.config.beta * (epoch / self.config.kl_warmup_epochs)
         else:
             return self.config.beta
@@ -418,7 +418,7 @@ class VariationalAutoencoder:
                 
                 self.optimizer.step()
                 
-                # Накопление metrics
+                # metrics
                 epoch_total_loss += total_loss.item()
                 epoch_recon_loss += recon_loss.item()
                 epoch_kl_loss += kl_loss.item()
@@ -434,7 +434,7 @@ class VariationalAutoencoder:
                         f"Beta: {beta:.4f}"
                     )
             
-            # Усреднение metrics for epoch
+            # Averaging metrics for epoch
             num_batches = len(dataloader)
             avg_total_loss = epoch_total_loss / num_batches
             avg_recon_loss = epoch_recon_loss / num_batches
@@ -514,14 +514,14 @@ class VariationalAutoencoder:
         }
     
     def encode(self, x: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
-        """Encode data in латентное space"""
+        """Encode data in latent space"""
         self.encoder.eval()
         with torch.no_grad():
             mu, logvar = self.encoder(x)
         return mu, logvar
     
     def decode(self, z: torch.Tensor) -> torch.Tensor:
-        """Декодирование from латентного space"""
+        """Decoding from latent space"""
         self.decoder.eval()
         with torch.no_grad():
             return self.decoder(z)
@@ -531,8 +531,8 @@ class VariationalAutoencoder:
         Generation new samples
         
         Args:
-            num_samples: Number samples for генерации
-            z: Латентные vectors (if None, генерируются from N(0,1))
+            num_samples: Number samples for generation
+            z: vectors (if None, are generated from N(0,1))
         """
         self.decoder.eval()
         
@@ -551,21 +551,21 @@ class VariationalAutoencoder:
         num_steps: int = 10
     ) -> np.ndarray:
         """
-        Interpolation between двумя точками in латентном пространстве
+        Interpolation between two in
         
         Args:
-            x1, x2: Исходные data for интерполяции
-            num_steps: Number шагов интерполяции
+            x1, x2: Source data for interpolation
+            num_steps: Number steps interpolation
         """
         self.encoder.eval()
         self.decoder.eval()
         
         with torch.no_grad():
-            # Кодируем in латентное space
+            # in latent space
             mu1, _ = self.encoder(x1)
             mu2, _ = self.encoder(x2)
             
-            # Создаем интерполяцию
+            # Create
             interpolated_samples = []
             for i in range(num_steps):
                 alpha = i / (num_steps - 1)
@@ -576,7 +576,7 @@ class VariationalAutoencoder:
         return np.array(interpolated_samples)
     
     def latent_space_analysis(self, dataloader: DataLoader) -> Dict[str, np.ndarray]:
-        """Анализ латентного space"""
+        """Analysis latent space"""
         self.encoder.eval()
         
         latent_vectors = []
@@ -632,7 +632,7 @@ class VariationalAutoencoder:
 
 
 def main():
-    """Пример use VAE"""
+    """Example use VAE"""
     
     # Configuration VAE
     config = VAEConfig(
@@ -652,12 +652,12 @@ def main():
     np.random.seed(42)
     dates = pd.date_range('2023-01-01', periods=2000, freq='1H')
     
-    # Симуляция crypto data with разными режимами
+    # Simulation crypto data with different regimes
     prices = []
     base_price = 1000
     
     for i in range(2000):
-        # Разные market условия
+        # Different market conditions
         if i < 500:
             # Trending market
             drift = 0.0005
@@ -707,7 +707,7 @@ def main():
     generated_samples = vae.generate_samples(num_samples=10)
     logger.info(f"Generated samples shape: {generated_samples.shape}")
     
-    # Анализ латентного space
+    # Analysis latent space
     latent_analysis = vae.latent_space_analysis(val_dataloader)
     logger.info(f"Latent vectors shape: {latent_analysis['latent_vectors'].shape}")
     
@@ -721,7 +721,7 @@ def main():
     # Save model
     vae.save_checkpoint("models/vae_final.pth")
     
-    # Анализ results
+    # Analysis results
     final_metrics = training_history
     logger.info("VAE training metrics:")
     logger.info(f"Final Total Loss: {final_metrics['total_loss'][-1]:.4f}")

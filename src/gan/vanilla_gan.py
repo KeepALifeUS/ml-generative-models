@@ -48,7 +48,7 @@ class GANConfig:
     input_dim: int = 100  # Size noise vector
     hidden_dims: List[int] = None
     output_dim: int = 5  # OHLCV
-    sequence_length: int = 60  # 60 temporal шагов
+    sequence_length: int = 60 # 60 temporal steps
     
     # Training
     batch_size: int = 64
@@ -100,10 +100,10 @@ class CryptoDataset(Dataset):
     
     def _preprocess_data(self, data: pd.DataFrame) -> pd.DataFrame:
         """Preprocessing data"""
-        # Копируем data
+        # data
         df = data.copy()
         
-        # Вычисляем log returns for prices
+        # Computing log returns for prices
         for col in self.price_columns:
             if col in df.columns:
                 df[f'{col}_log_return'] = np.log(df[col] / df[col].shift(1))
@@ -112,16 +112,16 @@ class CryptoDataset(Dataset):
         if self.volume_column in df.columns:
             df[f'{self.volume_column}_log'] = np.log1p(df[self.volume_column])
         
-        # Удаляем NaN values
+        # Removing NaN values
         df = df.dropna()
         
         return df
     
     def _create_sequences(self) -> List[np.ndarray]:
-        """Create последовательностей for training"""
+        """Create sequences for training"""
         sequences = []
         
-        # Выбираем columns for model
+        # Select columns for model
         feature_columns = [f'{col}_log_return' for col in self.price_columns]
         if f'{self.volume_column}_log' in self.data.columns:
             feature_columns.append(f'{self.volume_column}_log')
@@ -132,7 +132,7 @@ class CryptoDataset(Dataset):
         self.scaler = StandardScaler()
         data_normalized = self.scaler.fit_transform(data_values)
         
-        # Создаем последовательности
+        # Create sequence
         for i in range(len(data_normalized) - self.sequence_length + 1):
             sequence = data_normalized[i:i + self.sequence_length]
             sequences.append(sequence)
@@ -189,7 +189,7 @@ class Generator(nn.Module):
             nn.init.constant_(module.bias.data, 0)
     
     def _count_parameters(self):
-        """Подсчет parameters model"""
+        """Count parameters model"""
         return sum(p.numel() for p in self.parameters() if p.requires_grad)
     
     def forward(self, noise):
@@ -236,7 +236,7 @@ class Discriminator(nn.Module):
             nn.init.constant_(module.bias.data, 0)
     
     def _count_parameters(self):
-        """Подсчет parameters model"""
+        """Count parameters model"""
         return sum(p.numel() for p in self.parameters() if p.requires_grad)
     
     def forward(self, input):
@@ -246,7 +246,7 @@ class Discriminator(nn.Module):
 
 class VanillaGAN:
     """
-    Enterprise Vanilla GAN for генерации cryptocurrency data
+    Enterprise Vanilla GAN for generation cryptocurrency data
     
     Implements enterprise patterns for production-ready deployment:
     - Comprehensive logging and monitoring
@@ -263,7 +263,7 @@ class VanillaGAN:
         self.generator = Generator(config).to(self.device)
         self.discriminator = Discriminator(config).to(self.device)
         
-        # Оптимизаторы
+        # Optimizers
         self.g_optimizer = optim.Adam(
             self.generator.parameters(),
             lr=config.learning_rate,
@@ -289,7 +289,7 @@ class VanillaGAN:
         logger.info(f"VanillaGAN initialized on {self.device}")
     
     def _setup_device(self, device: str) -> torch.device:
-        """Configure устройства for training"""
+        """Configure device for training"""
         if device == "auto":
             if torch.cuda.is_available():
                 device = "cuda"
@@ -309,11 +309,11 @@ class VanillaGAN:
         Training GAN model
         
         Args:
-            dataloader: DataLoader for обучающих data
-            validation_loader: DataLoader for валидационных data
+            dataloader: DataLoader for training data
+            validation_loader: DataLoader for validation data
             
         Returns:
-            История training
+            History training
         """
         logger.info(f"Starting training for {self.config.num_epochs} epochs")
         
@@ -344,7 +344,7 @@ class VanillaGAN:
                         f"D_loss: {d_loss:.4f} G_loss: {g_loss:.4f}"
                     )
             
-            # Усреднение loss for epoch
+            # Averaging loss for epoch
             avg_g_loss = epoch_g_loss / len(dataloader)
             avg_d_loss = epoch_d_loss / len(dataloader)
             
@@ -371,7 +371,7 @@ class VanillaGAN:
         return self.training_history
     
     def _train_discriminator(self, real_data: torch.Tensor, batch_size: int) -> float:
-        """Training дискриминатора"""
+        """Training discriminator"""
         self.d_optimizer.zero_grad()
         
         # Real data
@@ -405,7 +405,7 @@ class VanillaGAN:
         noise = torch.randn(batch_size, self.config.input_dim).to(self.device)
         fake_data = self.generator(noise)
         
-        # Пытаемся обмануть дискриминатор
+        # Trying fool
         fake_labels = torch.ones(batch_size, 1).to(self.device)
         fake_output = self.discriminator(fake_data)
         
@@ -467,11 +467,11 @@ class VanillaGAN:
         Generation synthetic samples
         
         Args:
-            num_samples: Number samples for генерации
-            noise: Пользовательский шум (опционально)
+            num_samples: Number samples for generation
+            noise: Custom noise (optionally)
             
         Returns:
-            Сгенерированные data
+            Generated data
         """
         self.generator.eval()
         
@@ -515,7 +515,7 @@ class VanillaGAN:
 
 
 def main():
-    """Пример use VanillaGAN"""
+    """Example use VanillaGAN"""
     
     # Configuration
     config = GANConfig(
@@ -526,7 +526,7 @@ def main():
         learning_rate=0.0002
     )
     
-    # Create synthetic data for примера
+    # Create synthetic data for example
     np.random.seed(42)
     dates = pd.date_range('2023-01-01', periods=1000, freq='1H')
     

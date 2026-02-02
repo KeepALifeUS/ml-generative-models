@@ -44,30 +44,30 @@ logger.add(
 
 @dataclass
 class WGANConfig(GANConfig):
-    """Расширенная configuration for WGAN"""
-    # WGAN специфичные parameters
-    critic_iterations: int = 5  # Number iterations критика on одну итерацию generator
+    """ configuration for WGAN"""
+    # WGAN specific parameters
+    critic_iterations: int = 5 # Number iterations critic on generator
     gradient_penalty_weight: float = 10.0  # λ for gradient penalty
-    use_gradient_penalty: bool = True  # Использовать WGAN-GP
-    use_spectral_norm: bool = False  # Спектральная normalization
+    use_gradient_penalty: bool = True # Use WGAN-GP
+    use_spectral_norm: bool = False # normalization
     
-    # Clipping parameters (for обычного WGAN)
+    # Clipping parameters (for regular WGAN)
     weight_clip_value: float = 0.01
     
-    # Learning rates (часто разные for WGAN)
+    # Learning rates (often different for WGAN)
     critic_lr: float = 0.0001
     generator_lr: float = 0.0001
 
 
 def spectral_norm_conv(module, use_spectral_norm=True):
-    """Apply спектральной normalization to конволюционному слою"""
+    """Apply spectral normalization to layer"""
     if use_spectral_norm:
         return nn.utils.spectral_norm(module)
     return module
 
 
 def spectral_norm_linear(module, use_spectral_norm=True):
-    """Apply спектральной normalization to линейному слою"""
+    """Apply spectral normalization to layer"""
     if use_spectral_norm:
         return nn.utils.spectral_norm(module)
     return module
@@ -75,8 +75,8 @@ def spectral_norm_linear(module, use_spectral_norm=True):
 
 class WGANGenerator(nn.Module):
     """
-    WGAN Generator with поддержкой спектральной normalization
-    and crypto-specific архитектурой
+    WGAN Generator with support spectral normalization
+    and crypto-specific architecture
     """
     
     def __init__(self, config: WGANConfig):
@@ -103,7 +103,7 @@ class WGANGenerator(nn.Module):
         output_linear = nn.Linear(in_features, config.sequence_length * config.output_dim)
         output_linear = spectral_norm_linear(output_linear, config.use_spectral_norm)
         layers.append(output_linear)
-        # Убираем Tanh for WGAN - пусть generator производит любые values
+        # Removing Tanh for WGAN - generator values
         
         self.main = nn.Sequential(*layers)
         
@@ -134,7 +134,7 @@ class WGANCritic(nn.Module):
     """
     WGAN Critic (Discriminator) with Wasserstein distance
     
-    Критик оценивает "реалистичность" data without sigmoid activation
+    Critic "" data without sigmoid activation
     """
     
     def __init__(self, config: WGANConfig):
@@ -157,7 +157,7 @@ class WGANCritic(nn.Module):
             ])
             in_features = hidden_dim
         
-        # Output layer (without activation - критик returns реальные values)
+        # Output layer (without activation - returns values)
         output_linear = nn.Linear(in_features, 1)
         output_linear = spectral_norm_linear(output_linear, config.use_spectral_norm)
         layers.append(output_linear)
@@ -189,7 +189,7 @@ class WGANCritic(nn.Module):
 
 class WGAN:
     """
-    Wasserstein GAN for генерации cryptocurrency data
+    Wasserstein GAN for generation cryptocurrency data
     
     Implements:
     - Wasserstein distance instead of JS divergence
@@ -206,14 +206,14 @@ class WGAN:
         self.generator = WGANGenerator(config).to(self.device)
         self.critic = WGANCritic(config).to(self.device)
         
-        # Разные learning rates for generator and критика
+        # Different learning rates for generator and critic
         self.g_optimizer = optim.Adam(
             self.generator.parameters(),
             lr=config.generator_lr,
             betas=(config.beta1, config.beta2)
         )
         
-        # RMSprop часто работает лучше for WGAN критика
+        # RMSprop often works better for WGAN critic
         self.c_optimizer = optim.RMSprop(
             self.critic.parameters(),
             lr=config.critic_lr
@@ -234,7 +234,7 @@ class WGAN:
         logger.info(f"Critic iterations: {config.critic_iterations}")
     
     def _setup_device(self, device: str) -> torch.device:
-        """Configure устройства for training"""
+        """Configure device for training"""
         if device == "auto":
             if torch.cuda.is_available():
                 device = "cuda"
@@ -254,26 +254,26 @@ class WGAN:
         Computation gradient penalty for WGAN-GP
         
         Args:
-            real_data: Реальные data
-            fake_data: Сгенерированные data
+            real_data: Real data
+            fake_data: Generated data
             
         Returns:
             Gradient penalty loss
         """
         batch_size = real_data.size(0)
         
-        # Случайные weights for интерполяции
+        # Random weights for interpolation
         alpha = torch.rand(batch_size, 1, 1).to(self.device)
         alpha = alpha.expand_as(real_data)
         
-        # Интерполированные samples
+        # samples
         interpolated = alpha * real_data + (1 - alpha) * fake_data
         interpolated.requires_grad_(True)
         
-        # Критик for интерполированных data
+        # Critic for data
         critic_interpolated = self.critic(interpolated)
         
-        # Computation градиентов
+        # Computation gradients
         gradients = grad(
             outputs=critic_interpolated,
             inputs=interpolated,
@@ -283,17 +283,17 @@ class WGAN:
             only_inputs=True
         )[0]
         
-        # Градиенты in batch dimension
+        # in batch dimension
         gradients = gradients.view(batch_size, -1)
         gradient_norm = gradients.norm(2, dim=1)
         
-        # Penalty (стремимся to норме градиента = 1)
+        # Penalty ( to = 1)
         penalty = torch.mean((gradient_norm - 1) ** 2)
         
         return penalty
     
     def _clip_critic_weights(self):
-        """Обрезание weights критика (for обычного WGAN without GP)"""
+        """Clipping weights critic (for regular WGAN without GP)"""
         if not self.config.use_gradient_penalty:
             for param in self.critic.parameters():
                 param.data.clamp_(-self.config.weight_clip_value, self.config.weight_clip_value)
@@ -307,11 +307,11 @@ class WGAN:
         Training WGAN model
         
         Args:
-            dataloader: DataLoader for обучающих data
-            validation_loader: DataLoader for валидационных data
+            dataloader: DataLoader for training data
+            validation_loader: DataLoader for validation data
             
         Returns:
-            История training
+            History training
         """
         logger.info(f"Starting WGAN training for {self.config.num_epochs} epochs")
         
@@ -328,14 +328,14 @@ class WGAN:
                 real_data = real_data.to(self.device)
                 batch_size = real_data.size(0)
                 
-                # Training критика несколько раз
+                # Training critic time
                 for _ in range(self.config.critic_iterations):
                     c_loss, wasserstein_dist, gp = self._train_critic(real_data, batch_size)
                     epoch_c_loss += c_loss
                     epoch_wasserstein_distance += wasserstein_dist
                     epoch_gradient_penalty += gp
                 
-                # Training generator one раз
+                # Training generator one time
                 g_loss = self._train_generator(batch_size)
                 epoch_g_loss += g_loss
                 
@@ -348,7 +348,7 @@ class WGAN:
                         f"W_dist: {wasserstein_dist:.4f}"
                     )
             
-            # Усреднение metrics for epoch
+            # Averaging metrics for epoch
             num_batches = len(dataloader)
             avg_g_loss = epoch_g_loss / num_batches
             avg_c_loss = epoch_c_loss / (num_batches * self.config.critic_iterations)
@@ -381,14 +381,14 @@ class WGAN:
         return self.training_history
     
     def _train_critic(self, real_data: torch.Tensor, batch_size: int) -> Tuple[float, float, float]:
-        """Training критика"""
+        """Training critic"""
         self.c_optimizer.zero_grad()
         
-        # Evaluate реальных data
+        # Evaluate data
         real_output = self.critic(real_data)
         real_loss = torch.mean(real_output)
         
-        # Generation and evaluation фейковых data
+        # Generation and evaluation data
         noise = torch.randn(batch_size, self.config.input_dim).to(self.device)
         fake_data = self.generator(noise).detach()
         fake_output = self.critic(fake_data)
@@ -397,7 +397,7 @@ class WGAN:
         # Wasserstein distance (approximately)
         wasserstein_distance = real_loss - fake_loss
         
-        # Gradient penalty (if используется)
+        # Gradient penalty (if is used)
         gradient_penalty = 0.0
         if self.config.use_gradient_penalty:
             gp = self._gradient_penalty(real_data, fake_data)
@@ -405,12 +405,12 @@ class WGAN:
         else:
             gp = 0
         
-        # Total loss for критика (максимизируем Wasserstein distance, минимизируем GP)
+        # Total loss for critic (maximize Wasserstein distance, GP)
         c_loss = fake_loss - real_loss + self.config.gradient_penalty_weight * gp
         c_loss.backward()
         self.c_optimizer.step()
         
-        # Обрезание weights (if not use GP)
+        # Clipping weights (if not use GP)
         self._clip_critic_weights()
         
         return c_loss.item(), wasserstein_distance.item(), gradient_penalty
@@ -423,10 +423,10 @@ class WGAN:
         noise = torch.randn(batch_size, self.config.input_dim).to(self.device)
         fake_data = self.generator(noise)
         
-        # Get оценки критика
+        # Get evaluation critic
         fake_output = self.critic(fake_data)
         
-        # Generator loss (максимизируем оценку критика for fake data)
+        # Generator loss (maximize critic for fake data)
         g_loss = -torch.mean(fake_output)
         g_loss.backward()
         self.g_optimizer.step()
@@ -489,11 +489,11 @@ class WGAN:
         Generation synthetic samples
         
         Args:
-            num_samples: Number samples for генерации
-            noise: Пользовательский шум (опционально)
+            num_samples: Number samples for generation
+            noise: Custom noise (optionally)
             
         Returns:
-            Сгенерированные data
+            Generated data
         """
         self.generator.eval()
         
@@ -537,7 +537,7 @@ class WGAN:
 
 
 def main():
-    """Пример use WGAN"""
+    """Example use WGAN"""
     
     # Configuration WGAN
     config = WGANConfig(
@@ -553,7 +553,7 @@ def main():
         use_spectral_norm=False
     )
     
-    # Create synthetic data for примера
+    # Create synthetic data for example
     np.random.seed(42)
     dates = pd.date_range('2023-01-01', periods=2000, freq='1H')
     
@@ -591,7 +591,7 @@ def main():
     # Save model
     wgan.save_checkpoint("models/wgan_final.pth")
     
-    # Анализ качества
+    # Analysis quality
     logger.info("WGAN training metrics:")
     logger.info(f"Final Generator Loss: {training_history['g_loss'][-1]:.4f}")
     logger.info(f"Final Critic Loss: {training_history['c_loss'][-1]:.4f}")
