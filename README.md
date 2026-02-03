@@ -387,3 +387,7 @@ Contributions welcome! Please read CONTRIBUTING.md first.
 ---
 
 **Built with ❤️ for Crypto Trading Bot v5.0**
+
+## Support
+
+For questions and support, please open an issue on GitHub.
